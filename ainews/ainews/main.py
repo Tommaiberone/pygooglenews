@@ -10,7 +10,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-API_KEY = os.getenv("API_KEY", "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")
+API_KEY = os.getenv(
+    "API_KEY", "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"
+)
+
 
 def scrape_article(url: str) -> str:
     """
@@ -28,15 +31,21 @@ def scrape_article(url: str) -> str:
 
     try:
         driver.get(url)
-        
+
         # Lista di possibili selettori basati sul contenuto (case insensitive) che contiene "accetta"
         cookie_selectors = [
             # Seleziona un <button> che contiene "accetta"
-            (By.XPATH, "//button[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]"),
+            (
+                By.XPATH,
+                "//button[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
+            ),
             # Seleziona un <a> che contiene "accetta"
-            (By.XPATH, "//a[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]")
+            (
+                By.XPATH,
+                "//a[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accetta')]",
+            ),
         ]
-        
+
         banner_cliccato = False
         for how, selector in cookie_selectors:
             try:
@@ -44,16 +53,18 @@ def scrape_article(url: str) -> str:
                     EC.element_to_be_clickable((how, selector))
                 )
                 cookie_button.click()
-                print(f"Banner dei cookie bypassato cliccando l'elemento trovato con {how}='{selector}'")
+                print(
+                    f"Banner dei cookie bypassato cliccando l'elemento trovato con {how}='{selector}'"
+                )
                 banner_cliccato = True
                 time.sleep(1)  # attesa per far registrare l'interazione
                 break
             except TimeoutException:
                 continue  # Se il selettore non trova nulla, passa al successivo
-        
+
         if not banner_cliccato:
             print("Banner dei cookie non trovato o già gestito.")
-        
+
         # Attendi ulteriormente per il caricamento completo della pagina
         time.sleep(2)
         html = driver.page_source
@@ -66,9 +77,11 @@ def scrape_article(url: str) -> str:
 
     # Parsing dell'HTML renderizzato con BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
-    for tag in soup(["script", "style", "noscript", "header", "footer", "aside", "nav"]):
+    for tag in soup(
+        ["script", "style", "noscript", "header", "footer", "aside", "nav"]
+    ):
         tag.decompose()
-    
+
     MIN_LENGTH = 200  # Lunghezza minima per considerare valido il testo dell'articolo
 
     # 1. Prova a cercare il contenuto nell'elemento <article>
@@ -86,9 +99,9 @@ def scrape_article(url: str) -> str:
         "div[class*='entry-content']",
         "section[class*='article']",
         "div[id*='content']",
-        "div[class*='main-content']"
+        "div[class*='main-content']",
     ]
-    
+
     for selector in candidate_selectors:
         candidate = soup.select_one(selector)
         if candidate:
@@ -109,25 +122,35 @@ def scrape_article(url: str) -> str:
     # 4. Fallback finale: unisci tutti i tag <p>
     paragraphs = soup.find_all('p')
     if paragraphs:
-        content = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+        content = "\n".join(
+            p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)
+        )
         if content and len(content) > MIN_LENGTH:
             return content
 
     return "No article content found."
+
 
 def sum_up_article(article: str) -> str:
     """
     Sintetizza l'articolo usando un servizio di IA.
     """
     payload = {
-        "model": "llama3-70b-8192",
+        "model": "llama3-8b-8192",
         "messages": [
             {
                 "role": "user",
                 "content": (
-                    f"Sintetizza il seguente articolo:\n"
-                    f"{article}"
-                )
+                    f"""Ecco un articolo di giornale. Il testo potrebbe contenere qualche rumore dovuto al parsing, quindi concentrati sui contenuti principali. 
+                        Riassumilo in tre bullet point chiari e concisi, senza perdere le informazioni essenziali. Non scrivere altro che i punti chiave. 
+                        Non aggiugere altro testo,
+
+                        Articolo:
+                        {article}
+
+                        Riassunto in 3 punti:
+                    """
+                ),
             },
         ],
     }
@@ -144,13 +167,17 @@ def sum_up_article(article: str) -> str:
 
     if response.status_code != 200:
         return f"Error: {response.text}"
-    
+
     data = response.json()
 
-
-    summary = data.get("choices", [{}])[0].get("message", {}).get("content", "No content found.")
+    summary = (
+        data.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content", "No content found.")
+    )
 
     return summary
+
 
 def main():
     # Create an instance of GoogleNews (using default language and country)
@@ -168,7 +195,7 @@ def main():
 
     # Process each entry by scraping the full article text
     for entry in top_entries:
-        
+
         print(f"Entry: {entry.get('title')}")
 
         url = entry.get('link')
@@ -181,14 +208,12 @@ def main():
         entry['content'] = article_content
         full_articles.append(entry)
 
-
-
     # Sum up the articles using an AI service
     for idx, article in enumerate(full_articles, start=1):
         print(f"\nArticle {idx}: {article.get('title')}")
         summary = sum_up_article(article.get('content'))
         print(f"Summary: {summary}")
-        
+
 
 if __name__ == '__main__':
     main()
