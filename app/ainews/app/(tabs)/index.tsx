@@ -11,83 +11,74 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-// Create a mock dataset with 50 items (each representing a video)
-const TOTAL_ITEMS = 50;
-const PAGE_SIZE = 5;
-const MOCK_DATA = Array.from({ length: TOTAL_ITEMS }, (_, index) => ({
-  id: index + 1,
-  title: `News ${index + 1}`,
-  // Using the local image asset for thumbnail
-  thumbnail: require('../../assets/images/react-logo.png'),
-}));
-
-// Simulate an API call that returns a paginated list of items
-const simulateFetch = (page) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const start = (page - 1) * PAGE_SIZE;
-      const end = start + PAGE_SIZE;
-      const result = MOCK_DATA.slice(start, end);
-      resolve(result);
-    }, 1000); // Simulate network delay of 1 second
-  });
-};
+// Update this with your backend's URL
+const BACKEND_URL = "http://AINewsBackend.eu.pythonanywhere.com";
 
 const InfiniteScrollPage = () => {
-  const [data, setData] = useState([]);      // Array of items
-  const [page, setPage] = useState(1);         // Current page number for pagination
+  const [data, setData] = useState([]);        // Array of news articles
   const [loading, setLoading] = useState(false); // Loading indicator
-  const [hasMore, setHasMore] = useState(true);  // Flag to indicate if more data is available
+  const [hasMore, setHasMore] = useState(true);  // Flag for more data (if paginated)
 
-  // Function to fetch data from your simulated API
+  // Fetch news data from the backend /top-news endpoint
   const fetchData = async () => {
-    if (loading || !hasMore) return;
+    if (loading || !hasMore) {
+      console.log('Skipping fetch: loading=', loading, ', hasMore=', hasMore);
+      return;
+    }
+    console.log('Starting data fetch...');
     setLoading(true);
-  
     try {
-      const result = await simulateFetch(page);
-  
-      if (result.length === 0) {
-        setHasMore(false); // No more data to load
+      const response = await fetch(`${BACKEND_URL}/top-news`);
+      console.log('Fetch response received:', response);
+      const json = await response.json();
+      console.log('Parsed JSON:', json);
+      // Expecting the backend to return an object like { articles: [...] }
+      if (json.articles && json.articles.length > 0) {
+        console.log('Articles found, updating state with articles:', json.articles);
+        setData(json.articles);
+        // If backend only returns one batch of news, disable further fetching.
+        setHasMore(false);
       } else {
-        setData(prevData => [...prevData, ...result]);
-        setPage(prevPage => prevPage + 1);
+        console.log('No articles found, setting hasMore to false');
+        setHasMore(false);
       }
     } catch (error) {
-      console.error('Error fetching data: ', error);
+      console.error('Error fetching news:', error);
     } finally {
+      console.log('Fetch complete, setting loading to false');
       setLoading(false);
     }
   };
-  
-  // Initial data fetch
+
+  // Initial fetch on mount
   useEffect(() => {
+    console.log('Component mounted, initiating first data fetch...');
     fetchData();
   }, []);
 
-  // Render each full-screen video item
-  const renderItem = ({ item }) => (
-    <View style={styles.mediaCard}>
-      {/* Thumbnail or Video component can go here */}
-      <Image source={item.thumbnail} style={styles.backgroundImage} />
-
-      {/* Overlay for video details (like title, user info, icons) */}
-      <View style={styles.overlay}>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.newsBody}>
-          This is a sample news body for {item.title}. It can be multiple lines long.
-          For demonstration purposes, we are limiting the text to a few lines.
-          Here is another line to make it longer.
-        </Text>
-        <Text style={styles.caption}>This is a sample caption for {item.title}.</Text>
-        {/* Add more overlay icons or buttons as needed */}
+  // Render each news article card
+  const renderItem = ({ item, index }) => {
+    console.log(`Rendering item at index ${index}:`, item);
+    return (
+      <View style={styles.mediaCard}>
+        <Image
+          source={require('../../assets/images/react-logo.png')}
+          style={styles.backgroundImage}
+        />
+        <View style={styles.overlay}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.newsBody}>
+            {item.summary ? item.summary : item.content}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
-  // Render footer component while new data is loading
+  // Render footer while loading new data
   const renderFooter = () => {
     if (!loading) return null;
+    console.log('Rendering footer loader...');
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#fff" />
@@ -99,11 +90,14 @@ const InfiniteScrollPage = () => {
     <FlatList
       data={data}
       renderItem={renderItem}
-      keyExtractor={(item) => String(item.id)}
+      keyExtractor={(item, index) => String(index)}
       pagingEnabled                  // Enables full-screen paging
       decelerationRate="fast"        // Helps snapping effect
       showsVerticalScrollIndicator={false}
-      onEndReached={fetchData}        // Trigger fetch when reaching end
+      onEndReached={() => {
+        console.log('End of list reached, fetching more data...');
+        fetchData();
+      }}
       onEndReachedThreshold={0.5}
       ListFooterComponent={renderFooter}
     />
@@ -124,29 +118,36 @@ const styles = StyleSheet.create({
   },
   overlay: {
     position: 'absolute',
-    bottom: 50,
-    left: 20,
-    right: 20,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 30,
+    // Semi-transparent overlay for readability over the image
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    // Rounded corners on the top for a modern look
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   title: {
     color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8,
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   newsBody: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  caption: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#ddd',
+    fontSize: 18,
+    lineHeight: 26,
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   loader: {
-    position: 'absolute',
-    bottom: 20,
+    paddingVertical: 20,
     alignSelf: 'center',
   },
 });
