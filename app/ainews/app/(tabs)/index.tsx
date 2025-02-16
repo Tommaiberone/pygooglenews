@@ -1,78 +1,154 @@
-import { Image, StyleSheet, Platform } from "react-native";
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Dimensions,
+  Image,
+} from 'react-native';
 
-import { HelloWave } from "@/components/HelloWave";
-import ParallaxScrollView from "@/components/ParallaxScrollView";
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+const { width, height } = Dimensions.get('window');
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
-        />
+// Create a mock dataset with 50 items (each representing a video)
+const TOTAL_ITEMS = 50;
+const PAGE_SIZE = 5;
+const MOCK_DATA = Array.from({ length: TOTAL_ITEMS }, (_, index) => ({
+  id: index + 1,
+  title: `News ${index + 1}`,
+  // Using the local image asset for thumbnail
+  thumbnail: require('../../assets/images/react-logo.png'),
+}));
+
+// Simulate an API call that returns a paginated list of items
+const simulateFetch = (page) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const start = (page - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      const result = MOCK_DATA.slice(start, end);
+      resolve(result);
+    }, 1000); // Simulate network delay of 1 second
+  });
+};
+
+const InfiniteScrollPage = () => {
+  const [data, setData] = useState([]);      // Array of items
+  const [page, setPage] = useState(1);         // Current page number for pagination
+  const [loading, setLoading] = useState(false); // Loading indicator
+  const [hasMore, setHasMore] = useState(true);  // Flag to indicate if more data is available
+
+  // Function to fetch data from your simulated API
+  const fetchData = async () => {
+    if (loading || !hasMore) return;
+    setLoading(true);
+  
+    try {
+      const result = await simulateFetch(page);
+  
+      if (result.length === 0) {
+        setHasMore(false); // No more data to load
+      } else {
+        setData(prevData => [...prevData, ...result]);
+        setPage(prevPage => prevPage + 1);
       }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Ai News !</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this
-          starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{" "}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    } catch (error) {
+      console.error('Error fetching data: ', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Initial data fetch
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Render each full-screen video item
+  const renderItem = ({ item }) => (
+    <View style={styles.mediaCard}>
+      {/* Thumbnail or Video component can go here */}
+      <Image source={item.thumbnail} style={styles.backgroundImage} />
+
+      {/* Overlay for video details (like title, user info, icons) */}
+      <View style={styles.overlay}>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.newsBody}>
+          This is a sample news body for {item.title}. It can be multiple lines long.
+          For demonstration purposes, we are limiting the text to a few lines.
+          Here is another line to make it longer.
+        </Text>
+        <Text style={styles.caption}>This is a sample caption for {item.title}.</Text>
+        {/* Add more overlay icons or buttons as needed */}
+      </View>
+    </View>
   );
-}
+
+  // Render footer component while new data is loading
+  const renderFooter = () => {
+    if (!loading) return null;
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  };
+
+  return (
+    <FlatList
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={(item) => String(item.id)}
+      pagingEnabled                  // Enables full-screen paging
+      decelerationRate="fast"        // Helps snapping effect
+      showsVerticalScrollIndicator={false}
+      onEndReached={fetchData}        // Trigger fetch when reaching end
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={renderFooter}
+    />
+  );
+};
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  mediaCard: {
+    width,
+    height,
+    backgroundColor: '#000',
+    position: 'relative',
   },
-  stepContainer: {
-    gap: 8,
+  backgroundImage: {
+    width,
+    height,
+    resizeMode: 'cover',
+  },
+  overlay: {
+    position: 'absolute',
+    bottom: 50,
+    left: 20,
+    right: 20,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
+  newsBody: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  caption: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  loader: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
   },
 });
+
+export default InfiniteScrollPage;
